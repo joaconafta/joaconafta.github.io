@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Análisis Crédito Hipotecario UVA</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --card: #1a1d27;
+      --border: #2a2d3e;
+      --accent: #4f8ef7;
+      --accent2: #38d9a9;
+      --warn: #f7a94f;
+      --danger: #f75f5f;
+      --text: #e2e8f0;
+      --muted: #8892a4;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      line-height: 1.6;
+      padding: 24px;
+    }
+    h1 { font-size: 1.8rem; font-weight: 700; color: #fff; }
+    h2 { font-size: 1.2rem; font-weight: 600; color: var(--accent); margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.05em; }
+    h3 { font-size: 1rem; font-weight: 600; color: var(--text); margin-bottom: 8px; }
+    .header {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      margin-bottom: 32px; flex-wrap: wrap; gap: 12px;
+    }
+    .header-sub { color: var(--muted); font-size: 0.9rem; margin-top: 4px; }
+    .badge {
+      background: #1e3a5f; color: var(--accent); padding: 4px 12px;
+      border-radius: 20px; font-size: 0.8rem; font-weight: 600;
+    }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 24px; }
+    @media (max-width: 900px) { .grid-3 { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 600px) { .grid-3, .grid-2 { grid-template-columns: 1fr; } }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .stat-value { font-size: 1.5rem; font-weight: 700; color: #fff; }
+    .stat-label { color: var(--muted); font-size: 0.82rem; margin-top: 2px; }
+    .stat-sub { color: var(--accent2); font-size: 0.85rem; margin-top: 4px; }
+
+    /* Slider */
+    .slider-wrap { margin-bottom: 24px; }
+    .slider-row { display: flex; align-items: center; gap: 16px; }
+    label { font-size: 0.9rem; color: var(--muted); }
+    input[type=range] {
+      -webkit-appearance: none; flex: 1; height: 6px;
+      background: var(--border); border-radius: 3px; outline: none;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 18px; height: 18px;
+      border-radius: 50%; background: var(--accent); cursor: pointer;
+    }
+    .slider-val {
+      min-width: 90px; text-align: right; font-weight: 700;
+      font-size: 1.1rem; color: var(--accent);
+    }
+
+    /* Table */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    th {
+      background: #12151f; color: var(--muted); font-weight: 600;
+      padding: 10px 12px; text-align: right; white-space: nowrap;
+      border-bottom: 2px solid var(--border);
+    }
+    th:first-child { text-align: left; }
+    td { padding: 9px 12px; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; }
+    td:first-child { text-align: left; font-weight: 600; }
+    tr:hover td { background: #1f2335; }
+    .ok     { color: var(--accent2); font-weight: 700; }
+    .warn   { color: var(--warn); font-weight: 700; }
+    .bad    { color: var(--danger); font-weight: 700; }
+    .check  { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
+
+    /* Legend chips */
+    .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+    .chip {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 0.8rem; color: var(--muted);
+    }
+    .chip-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+    /* Recommendation cards */
+    .rec-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 12px; padding: 20px; position: relative; overflow: hidden;
+    }
+    .rec-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    }
+    .rec-best::before { background: var(--accent2); }
+    .rec-bal::before  { background: var(--accent); }
+    .rec-risk::before { background: var(--warn); }
+    .rec-title { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+    .rec-best .rec-title { color: var(--accent2); }
+    .rec-bal  .rec-title { color: var(--accent); }
+    .rec-risk .rec-title { color: var(--warn); }
+    .rec-body { font-size: 0.88rem; color: var(--muted); line-height: 1.6; }
+    .rec-body strong { color: var(--text); }
+
+    .chart-container { position: relative; height: 320px; }
+    .chart-container-tall { position: relative; height: 400px; }
+
+    .note {
+      background: #1e1a0e; border: 1px solid #3d3010;
+      border-radius: 8px; padding: 14px 16px; font-size: 0.85rem;
+      color: #c9a84c; margin-bottom: 20px; line-height: 1.6;
+    }
+    .note strong { color: #f7c84f; }
+
+    .divider { border: none; border-top: 1px solid var(--border); margin: 28px 0; }
+
+    .prop-row { display: flex; gap: 12px; align-items: center; margin-bottom: 24px; flex-wrap: wrap; }
+    .prop-btn {
+      background: var(--card); border: 1px solid var(--border);
+      color: var(--muted); padding: 7px 14px; border-radius: 8px;
+      cursor: pointer; font-size: 0.85rem; transition: all 0.15s;
+    }
+    .prop-btn:hover, .prop-btn.active {
+      background: #1e3a5f; border-color: var(--accent); color: var(--accent);
+    }
+
+    footer { color: var(--muted); font-size: 0.8rem; margin-top: 40px; text-align: center; }
+    footer span { color: var(--danger); }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>Crédito Hipotecario UVA</h1>
+    <div class="header-sub">Análisis completo &nbsp;·&nbsp; Mayo 2026</div>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <span class="badge">TNA 6% Fija</span>
+    <span class="badge">USD 1 = $1,400 ARS</span>
+    <span class="badge">Financiación 75%</span>
+  </div>
+</div>
+
+<!-- Key stats -->
+<div class="grid-3" style="margin-bottom:28px;">
+  <div class="card">
+    <div class="stat-label">Cuota máxima aprobada</div>
+    <div class="stat-value">$1,299,827</div>
+    <div class="stat-sub">ARS / mes</div>
+  </div>
+  <div class="card">
+    <div class="stat-label">Cuota máx. en USD</div>
+    <div class="stat-value">~$929 USD</div>
+    <div class="stat-sub">al tipo de cambio actual</div>
+  </div>
+  <div class="card">
+    <div class="stat-label">Tasa nominal anual</div>
+    <div class="stat-value">6.00% + UVA</div>
+    <div class="stat-sub">CFT 6.11% TNA · TEA 6.17%</div>
+  </div>
+</div>
+
+<div class="note">
+  <strong>⚠ Crédito en UVA — Importante:</strong> El préstamo se expresa en Unidades de Valor Adquisitivo (UVA), que se actualizan diariamente según el CER (inflación).
+  La cuota en <strong>pesos sube con la inflación</strong>, pero el valor real de la deuda se mantiene constante si tus ingresos le siguen el ritmo.
+  La cuota inicial calculada aquí es en pesos de hoy.
+</div>
+
+<hr class="divider">
+
+<!-- Bank offers summary -->
+<h2>Ofertas del Banco (según tus ingresos)</h2>
+<div class="card" style="margin-bottom:28px;">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Oferta</th><th>Plazo</th><th>Monto máx. préstamo (ARS)</th>
+          <th>Monto máx. préstamo (USD)</th><th>Propiedad máx. (USD)</th><th>Cuota mensual</th>
+        </tr>
+      </thead>
+      <tbody id="tbOffers"></tbody>
+    </table>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- Property selector -->
+<h2>Análisis interactivo por valor de propiedad</h2>
+<div class="card" style="margin-bottom:24px;">
+  <div class="slider-wrap">
+    <div style="margin-bottom:12px;"><label>Valor de la propiedad</label></div>
+    <div class="slider-row">
+      <span style="color:var(--muted);font-size:0.85rem;">$100k USD</span>
+      <input type="range" id="propSlider" min="100000" max="180000" step="5000" value="150000" />
+      <span style="color:var(--muted);font-size:0.85rem;">$180k USD</span>
+      <div class="slider-val" id="sliderVal">$150,000 USD</div>
+    </div>
+  </div>
+  <div class="grid-3" id="propStats" style="margin-bottom:0;"></div>
+</div>
+
+<!-- Detail table for selected property -->
+<div class="card" style="margin-bottom:28px;">
+  <h3 id="detailTitle">Cuotas para propiedad seleccionada</h3>
+  <div style="margin-bottom:16px;"><div class="legend">
+    <span class="chip"><span class="chip-dot" style="background:var(--accent2)"></span>Dentro del límite aprobado</span>
+    <span class="chip"><span class="chip-dot" style="background:var(--warn)"></span>Supera en ≤ 20%</span>
+    <span class="chip"><span class="chip-dot" style="background:var(--danger)"></span>Supera el límite</span>
+  </div></div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Plazo</th><th>Cuota inicial (ARS)</th><th>Cuota en USD</th>
+          <th>Total pagado (ARS)</th><th>Total intereses (ARS)</th>
+          <th>vs. límite</th>
+        </tr>
+      </thead>
+      <tbody id="tbDetail"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Charts row -->
+<div class="grid-2" style="margin-bottom:28px;">
+  <div class="card">
+    <h3>Cuota inicial por plazo</h3>
+    <div class="chart-container">
+      <canvas id="chartCuota"></canvas>
+    </div>
+  </div>
+  <div class="card">
+    <h3>Total pagado vs. capital prestado</h3>
+    <div class="chart-container">
+      <canvas id="chartTotal"></canvas>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- Full scenario table -->
+<h2>Mapa completo: cuotas por propiedad y plazo</h2>
+<div class="card" style="margin-bottom:28px;">
+  <div class="prop-row" id="termButtons"></div>
+  <div class="table-wrap">
+    <table id="tbFull">
+      <thead id="tbFullHead"></thead>
+      <tbody id="tbFullBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Chart all properties -->
+<div class="card" style="margin-bottom:28px;">
+  <h3>Cuota mensual por valor de propiedad y plazo</h3>
+  <div style="margin-bottom:12px;"><div class="legend" id="chartAllLegend"></div></div>
+  <div class="chart-container-tall">
+    <canvas id="chartAll"></canvas>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- UVA Inflation Projection -->
+<h2>Proyección de Cuota con Inflación UVA</h2>
+<div class="note">
+  <strong>¿Cómo leer este gráfico?</strong> La cuota en pesos sube con la inflación año a año porque el UVA sigue el CER.
+  Si tu salario crece al mismo ritmo, el esfuerzo real es constante. Si la inflación te gana, la cuota "pesa más" cada mes.
+  El tooltip muestra también el equivalente en USD (asumiendo que el tipo de cambio sigue la inflación — PPP).
+</div>
+<div class="card" style="margin-bottom:28px;">
+  <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:20px;">
+    <div>
+      <label style="display:block;margin-bottom:6px;">Propiedad</label>
+      <select id="uvaPropSel" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:7px 12px;font-size:0.9rem;"></select>
+    </div>
+    <div>
+      <label style="display:block;margin-bottom:6px;">Plazo</label>
+      <select id="uvaTermSel" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:7px 12px;font-size:0.9rem;"></select>
+    </div>
+  </div>
+  <div class="chart-container-tall"><canvas id="chartUVA"></canvas></div>
+</div>
+
+<hr class="divider">
+
+<!-- Prepayment Simulator -->
+<h2>Simulador de Precancelación y Pagos Anticipados</h2>
+<div class="note">
+  <strong>Precancelación en créditos UVA (BCRA):</strong> Podés precancelar total o parcialmente en cualquier momento.
+  Algunos bancos cobran una comisión del 1–2% sobre el monto precancelado en los primeros años. Verificá con tu banco.
+  El saldo mostrado es en pesos de hoy; el saldo real en UVAs es fijo en términos reales.
+</div>
+<div class="grid-2" style="margin-bottom:16px;">
+  <div class="card">
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px;">
+      <div>
+        <label style="display:block;margin-bottom:6px;">Propiedad</label>
+        <select id="prePropSel" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:7px 12px;font-size:0.9rem;"></select>
+      </div>
+      <div>
+        <label style="display:block;margin-bottom:6px;">Plazo</label>
+        <select id="preTermSel" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:7px 12px;font-size:0.9rem;"></select>
+      </div>
+      <div>
+        <label style="display:block;margin-bottom:6px;">Penalidad banco (%)</label>
+        <input type="number" id="prePenalty" value="1" min="0" max="5" step="0.5"
+          style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:7px 12px;font-size:0.9rem;width:80px;" />
+      </div>
+    </div>
+    <div style="margin-bottom:20px;">
+      <label style="display:block;margin-bottom:8px;">Mes de cancelación: <strong id="preMonthVal" style="color:var(--accent)">mes 60</strong></label>
+      <input type="range" id="preMonthSlider" min="1" max="360" step="1" value="60" />
+    </div>
+    <div class="grid-3" id="preStats" style="margin-bottom:0;"></div>
+  </div>
+  <div class="card">
+    <h3>Saldo remanente a lo largo del tiempo</h3>
+    <div class="chart-container"><canvas id="chartBalance"></canvas></div>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:28px;">
+  <h3>Simulador de pago extra mensual</h3>
+  <div style="color:var(--muted);font-size:0.85rem;margin-bottom:16px;">
+    Si pagás un monto extra todos los meses directo a capital, ¿cuánto antes terminás y cuánto ahorrás?
+  </div>
+  <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:20px;">
+    <div>
+      <label style="display:block;margin-bottom:6px;">Pago extra mensual (ARS)</label>
+      <input type="number" id="extraPayment" value="200000" step="50000" min="0"
+        style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:7px 12px;font-size:0.9rem;width:180px;" />
+    </div>
+  </div>
+  <div class="grid-3" id="extraStats" style="margin-bottom:0;"></div>
+</div>
+
+<hr class="divider">
+
+<!-- Recommendations -->
+<h2>Análisis y Recomendaciones</h2>
+<div class="grid-3" style="margin-bottom:28px;">
+  <div class="rec-card rec-best">
+    <div class="rec-title">Mejor relación costo/cuota</div>
+    <div class="rec-body" id="recBest"></div>
+  </div>
+  <div class="rec-card rec-bal">
+    <div class="rec-title">Opción equilibrada</div>
+    <div class="rec-body" id="recBal"></div>
+  </div>
+  <div class="rec-card rec-risk">
+    <div class="rec-title">Consideraciones de riesgo UVA</div>
+    <div class="rec-body" id="recRisk"></div>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:28px;">
+  <h3>Anticipo necesario por valor de propiedad (25% + gastos)</h3>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Propiedad (USD)</th><th>Propiedad (ARS)</th>
+          <th>Anticipo 25% (USD)</th><th>Anticipo 25% (ARS)</th>
+          <th>+ Gastos ~4% (ARS)</th><th>Total a tener (ARS)</th><th>Total a tener (USD)</th>
+        </tr>
+      </thead>
+      <tbody id="tbAnticipo"></tbody>
+    </table>
+  </div>
+</div>
+
+<footer>
+  Cálculos en base a TNA 6% fija sobre UVA · USD/ARS $1,400 · LTV 75% · Mayo 2026<br>
+  <span>Este análisis es orientativo. Verificá condiciones con el banco antes de tomar una decisión.</span>
+</footer>
+
+<script>
+// ─── Constants ───────────────────────────────────────────────────────────────
+const TNA = 0.06;
+const r   = TNA / 12;          // monthly rate
+const USD = 1400;              // ARS per USD
+const LTV = 0.75;
+const MAX_CUOTA = 1299827;     // ARS — bank approved max
+
+const TERMS = [5, 10, 15, 20, 25, 30];
+const PROPS = [100000, 110000, 120000, 130000, 140000, 150000, 160000, 170000, 180000];
+
+const TERM_COLORS = [
+  '#f75f5f', '#f7a94f', '#f7d74f', '#4f8ef7', '#38d9a9', '#b77cfc'
+];
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+const fmtARS  = v => '$' + Math.round(v).toLocaleString('es-AR');
+const fmtUSD  = v => 'USD ' + Math.round(v).toLocaleString('es-AR');
+const fmtPct  = v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
+
+function pmt(principal, months) {
+  // PMT = P * r / (1 - (1+r)^-n)
+  return principal * r / (1 - Math.pow(1 + r, -months));
+}
+
+function loanAmount(propUSD) {
+  return propUSD * USD * LTV;
+}
+
+function cuotaStatus(cuota) {
+  const ratio = cuota / MAX_CUOTA;
+  if (ratio <= 1)           return { cls: 'ok',   label: '✓ OK' };
+  if (ratio <= 1.20)        return { cls: 'warn', label: '⚠ +' + ((ratio-1)*100).toFixed(0) + '%' };
+  return                          { cls: 'bad',  label: '✗ +' + ((ratio-1)*100).toFixed(0) + '%' };
+}
+
+// ─── Max loan amounts from bank offers ───────────────────────────────────────
+const BANK_MAX_LOANS = {
+  5:  67234271,
+  10: 117079890,
+  15: 154034047,
+  20: 181430831,
+  25: 201742044,
+  30: 216800214
+};
+
+// ─── Build Bank Offers Table ─────────────────────────────────────────────────
+(function buildOffersTable() {
+  const names = {5:'A',10:'B',15:'C',20:'D',25:'E',30:'F'};
+  const tbody = document.getElementById('tbOffers');
+  TERMS.forEach(t => {
+    const maxLoan = BANK_MAX_LOANS[t];
+    const maxPropUSD = maxLoan / (USD * LTV);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${names[t]}</td>
+      <td>${t} años</td>
+      <td>${fmtARS(maxLoan)}</td>
+      <td>${fmtUSD(maxLoan / USD)}</td>
+      <td><strong>${fmtUSD(maxPropUSD)}</strong></td>
+      <td class="ok">${fmtARS(MAX_CUOTA)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+})();
+
+// ─── Build Anticipo Table ─────────────────────────────────────────────────────
+(function buildAnticipoTable() {
+  const tbody = document.getElementById('tbAnticipo');
+  PROPS.forEach(p => {
+    const anticipo   = p * 0.25 * USD;
+    const gastos     = p * 0.04 * USD;
+    const total      = anticipo + gastos;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${fmtUSD(p)}</td>
+      <td>${fmtARS(p * USD)}</td>
+      <td>${fmtUSD(p * 0.25)}</td>
+      <td>${fmtARS(anticipo)}</td>
+      <td>${fmtARS(gastos)}</td>
+      <td><strong>${fmtARS(total)}</strong></td>
+      <td><strong>${fmtUSD(p * 0.29)}</strong></td>
+    `;
+    tbody.appendChild(tr);
+  });
+})();
+
+// ─── Interactive property selector ───────────────────────────────────────────
+let chartCuota, chartTotal, chartAll;
+let currentProp = 150000;
+let currentTerm = 20;
+
+function buildPropStats(propUSD) {
+  const loan = loanAmount(propUSD);
+  const down = propUSD * USD * 0.25;
+  const container = document.getElementById('propStats');
+  container.innerHTML = `
+    <div class="card" style="border:none;padding:12px 0;">
+      <div class="stat-label">Valor propiedad</div>
+      <div class="stat-value">${fmtUSD(propUSD)}</div>
+      <div class="stat-sub">${fmtARS(propUSD * USD)}</div>
+    </div>
+    <div class="card" style="border:none;padding:12px 0;">
+      <div class="stat-label">Préstamo (75%)</div>
+      <div class="stat-value">${fmtARS(loan)}</div>
+      <div class="stat-sub">${fmtUSD(loan / USD)}</div>
+    </div>
+    <div class="card" style="border:none;padding:12px 0;">
+      <div class="stat-label">Anticipo necesario (25%+4%)</div>
+      <div class="stat-value">${fmtUSD(propUSD * 0.29)}</div>
+      <div class="stat-sub">${fmtARS(propUSD * USD * 0.29)}</div>
+    </div>
+  `;
+}
+
+function buildDetailTable(propUSD) {
+  const loan = loanAmount(propUSD);
+  document.getElementById('detailTitle').textContent =
+    `Cuotas para propiedad de ${fmtUSD(propUSD)} · Préstamo ${fmtARS(loan)}`;
+  const tbody = document.getElementById('tbDetail');
+  tbody.innerHTML = '';
+  TERMS.forEach(t => {
+    const c   = pmt(loan, t * 12);
+    const tot = c * t * 12;
+    const int = tot - loan;
+    const st  = cuotaStatus(c);
+    const tr  = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${t} años</td>
+      <td class="${st.cls}">${fmtARS(c)}</td>
+      <td class="${st.cls}">${fmtUSD(c / USD)}</td>
+      <td>${fmtARS(tot)}</td>
+      <td style="color:var(--warn)">${fmtARS(int)}</td>
+      <td class="${st.cls}">${st.label}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function buildChartCuota(propUSD) {
+  const loan = loanAmount(propUSD);
+  const cuotas = TERMS.map(t => Math.round(pmt(loan, t * 12)));
+  const bgColors = cuotas.map(c => {
+    const r = c / MAX_CUOTA;
+    if (r <= 1) return '#38d9a9';
+    if (r <= 1.2) return '#f7a94f';
+    return '#f75f5f';
+  });
+
+  if (chartCuota) chartCuota.destroy();
+  const ctx = document.getElementById('chartCuota').getContext('2d');
+  chartCuota = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: TERMS.map(t => t + ' años'),
+      datasets: [{
+        label: 'Cuota inicial (ARS)',
+        data: cuotas,
+        backgroundColor: bgColors,
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => fmtARS(ctx.raw) + '  (' + fmtUSD(ctx.raw / USD) + ')'
+          }
+        },
+        annotation: {}
+      },
+      scales: {
+        y: {
+          grid: { color: '#2a2d3e' },
+          ticks: { color: '#8892a4', callback: v => '$' + (v/1e6).toFixed(1) + 'M' }
+        },
+        x: { grid: { display: false }, ticks: { color: '#8892a4' } }
+      }
+    }
+  });
+
+  // Draw max cuota line
+  chartCuota.options.plugins.annotation = {};
+  // Simple approach: draw as dataset
+  chartCuota.data.datasets.push({
+    type: 'line',
+    label: 'Límite aprobado',
+    data: Array(TERMS.length).fill(MAX_CUOTA),
+    borderColor: '#4f8ef7',
+    borderDash: [6, 4],
+    borderWidth: 2,
+    pointRadius: 0,
+    fill: false,
+    tension: 0,
+  });
+  chartCuota.update();
+}
+
+function buildChartTotal(propUSD) {
+  const loan = loanAmount(propUSD);
+  const totals   = TERMS.map(t => Math.round(pmt(loan, t * 12) * t * 12));
+  const capitals = TERMS.map(() => Math.round(loan));
+  const interest = TERMS.map((t, i) => totals[i] - capitals[i]);
+
+  if (chartTotal) chartTotal.destroy();
+  const ctx = document.getElementById('chartTotal').getContext('2d');
+  chartTotal = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: TERMS.map(t => t + ' años'),
+      datasets: [
+        { label: 'Capital', data: capitals, backgroundColor: '#4f8ef7', borderRadius: 4 },
+        { label: 'Intereses', data: interest, backgroundColor: '#f7a94f', borderRadius: 4 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: '#8892a4' } },
+        tooltip: {
+          callbacks: { label: ctx => ctx.dataset.label + ': ' + fmtARS(ctx.raw) }
+        }
+      },
+      scales: {
+        x: { stacked: true, grid: { display: false }, ticks: { color: '#8892a4' } },
+        y: { stacked: true, grid: { color: '#2a2d3e' }, ticks: { color: '#8892a4', callback: v => '$' + (v/1e6).toFixed(0) + 'M' } }
+      }
+    }
+  });
+}
+
+// ─── Full scenario "map" table ────────────────────────────────────────────────
+let visibleTerm = null;
+
+function buildFullTable() {
+  // Term filter buttons
+  const btnDiv = document.getElementById('termButtons');
+  btnDiv.innerHTML = '<span style="color:var(--muted);font-size:0.85rem;margin-right:4px;">Filtrar plazo:</span>';
+  const allBtn = document.createElement('button');
+  allBtn.className = 'prop-btn active'; allBtn.textContent = 'Todos';
+  allBtn.onclick = () => { visibleTerm = null; renderFullTable(); setActive(allBtn, btnDiv); };
+  btnDiv.appendChild(allBtn);
+  TERMS.forEach(t => {
+    const btn = document.createElement('button');
+    btn.className = 'prop-btn'; btn.textContent = t + ' años';
+    btn.onclick = () => { visibleTerm = t; renderFullTable(); setActive(btn, btnDiv); };
+    btnDiv.appendChild(btn);
+  });
+  renderFullTable();
+}
+
+function setActive(el, parent) {
+  parent.querySelectorAll('.prop-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function renderFullTable() {
+  const terms = visibleTerm ? [visibleTerm] : TERMS;
+  const head  = document.getElementById('tbFullHead');
+  const body  = document.getElementById('tbFullBody');
+
+  head.innerHTML = '<tr><th>Propiedad (USD)</th>' +
+    terms.map(t => `<th>${t}a — cuota ARS</th>`).join('') +
+    '<th>Mejor plazo</th></tr>';
+
+  body.innerHTML = '';
+  PROPS.forEach(p => {
+    const loan = loanAmount(p);
+    const cuotas = TERMS.map(t => pmt(loan, t * 12));
+    const bestTerm = TERMS.find(t => pmt(loan, t * 12) <= MAX_CUOTA) || null;
+
+    const tr = document.createElement('tr');
+    let cells = `<td>${fmtUSD(p)}</td>`;
+    terms.forEach(t => {
+      const c  = cuotas[TERMS.indexOf(t)];
+      const st = cuotaStatus(c);
+      cells += `<td class="${st.cls}">${fmtARS(c)}</td>`;
+    });
+    cells += `<td>${bestTerm ? '<span class="ok">≥ ' + bestTerm + ' años</span>' : '<span class="bad">N/D</span>'}</td>`;
+    tr.innerHTML = cells;
+    body.appendChild(tr);
+  });
+}
+
+// ─── Chart all properties ─────────────────────────────────────────────────────
+function buildChartAll() {
+  if (chartAll) chartAll.destroy();
+  const ctx = document.getElementById('chartAll').getContext('2d');
+
+  const datasets = TERMS.map((t, i) => ({
+    label: t + ' años',
+    data: PROPS.map(p => Math.round(pmt(loanAmount(p), t * 12))),
+    borderColor: TERM_COLORS[i],
+    backgroundColor: TERM_COLORS[i] + '22',
+    borderWidth: 2,
+    pointRadius: 4,
+    tension: 0.3,
+    fill: false,
+  }));
+
+  // Max cuota line
+  datasets.push({
+    label: 'Límite aprobado',
+    data: PROPS.map(() => MAX_CUOTA),
+    borderColor: '#ffffff55',
+    borderDash: [8, 4],
+    borderWidth: 1.5,
+    pointRadius: 0,
+    fill: false,
+    tension: 0,
+  });
+
+  chartAll = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: PROPS.map(p => 'USD ' + (p/1000) + 'k'),
+      datasets
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: '#8892a4', boxWidth: 14 } },
+        tooltip: {
+          callbacks: { label: ctx => ctx.dataset.label + ': ' + fmtARS(ctx.raw) }
+        }
+      },
+      scales: {
+        y: {
+          grid: { color: '#2a2d3e' },
+          ticks: { color: '#8892a4', callback: v => '$' + (v/1e6).toFixed(1) + 'M' }
+        },
+        x: { grid: { color: '#2a2d3e22' }, ticks: { color: '#8892a4' } }
+      }
+    }
+  });
+}
+
+// ─── UVA Inflation Chart ─────────────────────────────────────────────────────
+const INF_SCENARIOS = [
+  { label: '40% anual (optimista)', rate: 0.40, color: '#38d9a9' },
+  { label: '70% anual (base)',      rate: 0.70, color: '#4f8ef7' },
+  { label: '100% anual (alto)',     rate: 1.00, color: '#f7a94f' },
+  { label: '150% anual (muy alto)', rate: 1.50, color: '#f75f5f' },
+];
+
+let chartUVA;
+
+function buildUVASelectors() {
+  const propSel = document.getElementById('uvaPropSel');
+  const termSel = document.getElementById('uvaTermSel');
+  PROPS.forEach(p => {
+    const o = document.createElement('option');
+    o.value = p; o.textContent = fmtUSD(p);
+    if (p === 150000) o.selected = true;
+    propSel.appendChild(o);
+  });
+  TERMS.forEach(t => {
+    const o = document.createElement('option');
+    o.value = t; o.textContent = t + ' años';
+    if (t === 20) o.selected = true;
+    termSel.appendChild(o);
+  });
+  propSel.addEventListener('change', updateUVAChart);
+  termSel.addEventListener('change', updateUVAChart);
+  updateUVAChart();
+}
+
+function updateUVAChart() {
+  const propUSD = +document.getElementById('uvaPropSel').value;
+  const termYrs = +document.getElementById('uvaTermSel').value;
+  const loan    = loanAmount(propUSD);
+  const cuota0  = pmt(loan, termYrs * 12);
+  const years   = Array.from({length: termYrs + 1}, (_, i) => i);
+
+  const datasets = INF_SCENARIOS.map(s => ({
+    label: s.label,
+    data: years.map(y => Math.round(cuota0 * Math.pow(1 + s.rate, y))),
+    borderColor: s.color,
+    backgroundColor: s.color + '15',
+    borderWidth: 2,
+    pointRadius: 2,
+    tension: 0.3,
+    fill: false,
+  }));
+
+  if (chartUVA) chartUVA.destroy();
+  const ctx = document.getElementById('chartUVA').getContext('2d');
+  chartUVA = new Chart(ctx, {
+    type: 'line',
+    data: { labels: years.map(y => 'Año ' + y), datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: '#8892a4', boxWidth: 14 } },
+        tooltip: {
+          callbacks: {
+            label: ctx => ctx.dataset.label + ': ' + fmtARS(ctx.raw) + '  (' + fmtUSD(ctx.raw / USD) + ')'
+          }
+        }
+      },
+      scales: {
+        y: {
+          grid: { color: '#2a2d3e' },
+          ticks: { color: '#8892a4', callback: v => '$' + (v >= 1e9 ? (v/1e9).toFixed(1)+'B' : (v/1e6).toFixed(0)+'M') }
+        },
+        x: { grid: { color: '#2a2d3e22' }, ticks: { color: '#8892a4', maxTicksLimit: 12 } }
+      }
+    }
+  });
+}
+
+// ─── Prepayment Simulator ─────────────────────────────────────────────────────
+let chartBalance;
+
+function buildPreSelectors() {
+  ['prePropSel', 'preTermSel'].forEach((id, idx) => {
+    const sel = document.getElementById(id);
+    (idx === 0 ? PROPS : TERMS).forEach(v => {
+      const o = document.createElement('option');
+      o.value = v;
+      o.textContent = idx === 0 ? fmtUSD(v) : v + ' años';
+      if ((idx === 0 && v === 150000) || (idx === 1 && v === 20)) o.selected = true;
+      sel.appendChild(o);
+    });
+    sel.addEventListener('change', updatePreCalc);
+  });
+  document.getElementById('prePenalty').addEventListener('input', updatePreCalc);
+  document.getElementById('preMonthSlider').addEventListener('input', e => {
+    updatePreCalc();
+  });
+  document.getElementById('extraPayment').addEventListener('input', updateExtraCalc);
+  updatePreCalc();
+}
+
+function remainingBalance(principal, totalMonths, monthN) {
+  const m = pmt(principal, totalMonths);
+  if (monthN >= totalMonths) return 0;
+  return m * (1 - Math.pow(1 + r, -(totalMonths - monthN))) / r;
+}
+
+function updatePreCalc() {
+  const propUSD     = +document.getElementById('prePropSel').value;
+  const termYrs     = +document.getElementById('preTermSel').value;
+  const penaltyPct  = (+document.getElementById('prePenalty').value || 0) / 100;
+  const totalMonths = termYrs * 12;
+
+  const slider = document.getElementById('preMonthSlider');
+  slider.max = totalMonths - 1;
+  const monthN = Math.min(+slider.value, totalMonths - 1);
+  slider.value = monthN;
+  document.getElementById('preMonthVal').textContent =
+    'mes ' + monthN + '  (año ' + (monthN / 12).toFixed(1) + ')';
+
+  const loan          = loanAmount(propUSD);
+  const cuota         = pmt(loan, totalMonths);
+  const totalPaid     = cuota * totalMonths;
+  const totalInt      = totalPaid - loan;
+  const balanceN      = remainingBalance(loan, totalMonths, monthN);
+  const principalPaid = loan - balanceN;
+  const intPaidSoFar  = cuota * monthN - principalPaid;
+  const intSaved      = totalInt - intPaidSoFar;
+  const penalty       = balanceN * penaltyPct;
+  const netSaving     = intSaved - penalty;
+
+  document.getElementById('preStats').innerHTML = `
+    <div class="card" style="border:none;padding:10px 0;">
+      <div class="stat-label">Saldo a cancelar en mes ${monthN}</div>
+      <div class="stat-value" style="font-size:1.2rem;">${fmtARS(balanceN)}</div>
+      <div class="stat-sub">${fmtUSD(balanceN / USD)}</div>
+    </div>
+    <div class="card" style="border:none;padding:10px 0;">
+      <div class="stat-label">Intereses que te ahorrás</div>
+      <div class="stat-value" style="font-size:1.2rem;color:var(--accent2);">${fmtARS(intSaved)}</div>
+      <div class="stat-sub">${((intSaved / totalInt) * 100).toFixed(1)}% del total de intereses</div>
+    </div>
+    <div class="card" style="border:none;padding:10px 0;">
+      <div class="stat-label">Ahorro neto (penalidad ${(penaltyPct * 100).toFixed(1)}%)</div>
+      <div class="stat-value" style="font-size:1.2rem;color:${netSaving > 0 ? 'var(--accent2)' : 'var(--danger)'};">${fmtARS(netSaving)}</div>
+      <div class="stat-sub">Penalidad estimada: ${fmtARS(penalty)}</div>
+    </div>
+  `;
+
+  // Balance chart — sample every 6 months for performance
+  const step = Math.max(1, Math.floor(totalMonths / 60));
+  const sampleMonths = [];
+  for (let m = 0; m <= totalMonths; m += step) sampleMonths.push(m);
+
+  if (chartBalance) chartBalance.destroy();
+  const ctx = document.getElementById('chartBalance').getContext('2d');
+  chartBalance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: sampleMonths.map(m => 'M' + m),
+      datasets: [
+        {
+          label: 'Saldo remanente',
+          data: sampleMonths.map(m => Math.max(0, remainingBalance(loan, totalMonths, m))),
+          borderColor: '#4f8ef7',
+          backgroundColor: '#4f8ef715',
+          borderWidth: 2,
+          pointRadius: 0,
+          fill: true,
+          tension: 0.3,
+        },
+        {
+          label: 'Punto de cancelación (' + fmtARS(balanceN) + ')',
+          data: sampleMonths.map(m => {
+            const closest = sampleMonths.reduce((a, b) => Math.abs(b - monthN) < Math.abs(a - monthN) ? b : a);
+            return m === closest ? balanceN : null;
+          }),
+          borderColor: '#f75f5f',
+          backgroundColor: '#f75f5f',
+          pointRadius: 7,
+          pointStyle: 'circle',
+          showLine: false,
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: '#8892a4', boxWidth: 12, font: { size: 11 } } },
+        tooltip: { callbacks: { label: ctx => ctx.raw != null ? fmtARS(ctx.raw) : null } }
+      },
+      scales: {
+        y: {
+          grid: { color: '#2a2d3e' },
+          ticks: { color: '#8892a4', callback: v => '$' + (v / 1e6).toFixed(0) + 'M' }
+        },
+        x: {
+          grid: { display: false },
+          ticks: { color: '#8892a4', maxTicksLimit: 8 }
+        }
+      }
+    }
+  });
+
+  updateExtraCalc();
+}
+
+function updateExtraCalc() {
+  const propUSD     = +document.getElementById('prePropSel').value;
+  const termYrs     = +document.getElementById('preTermSel').value;
+  const extra       = +document.getElementById('extraPayment').value || 0;
+  const totalMonths = termYrs * 12;
+  const loan        = loanAmount(propUSD);
+  const cuota       = pmt(loan, totalMonths);
+
+  if (extra <= 0) {
+    document.getElementById('extraStats').innerHTML =
+      '<div style="color:var(--muted);font-size:0.9rem;padding:12px 0;">Ingresá un monto extra para ver el ahorro.</div>';
+    return;
+  }
+
+  let balance = loan;
+  let month = 0;
+  while (balance > 1 && month < totalMonths * 3) {
+    const interest  = balance * r;
+    const principal = (cuota - interest) + extra;
+    balance -= principal;
+    month++;
+    if (balance <= 0) break;
+  }
+
+  const totalPaidExtra = month * cuota + month * extra + Math.min(0, balance);
+  const originalTotal  = cuota * totalMonths;
+  const monthsSaved    = totalMonths - month;
+  const intSaved       = (originalTotal - loan) - (totalPaidExtra - loan);
+
+  document.getElementById('extraStats').innerHTML = `
+    <div class="card" style="border:none;padding:10px 0;">
+      <div class="stat-label">Cuota total con extra</div>
+      <div class="stat-value" style="font-size:1.2rem;">${fmtARS(cuota + extra)}</div>
+      <div class="stat-sub">${fmtUSD((cuota + extra) / USD)} / mes</div>
+    </div>
+    <div class="card" style="border:none;padding:10px 0;">
+      <div class="stat-label">Terminás en</div>
+      <div class="stat-value" style="font-size:1.2rem;color:var(--accent2);">${month} meses</div>
+      <div class="stat-sub">Te ahorrás <strong>${monthsSaved} meses</strong> (${(monthsSaved / 12).toFixed(1)} años)</div>
+    </div>
+    <div class="card" style="border:none;padding:10px 0;">
+      <div class="stat-label">Intereses que te ahorrás</div>
+      <div class="stat-value" style="font-size:1.2rem;color:var(--accent2);">${fmtARS(intSaved)}</div>
+      <div class="stat-sub">${fmtUSD(intSaved / USD)}</div>
+    </div>
+  `;
+}
+
+// ─── Recommendations ─────────────────────────────────────────────────────────
+function buildRecommendations() {
+  // Find which properties are feasible at which terms
+  // Best cost recommendation
+  document.getElementById('recBest').innerHTML = `
+    Para propiedades hasta <strong>$150,000 USD</strong>, el plazo de <strong>20 años</strong>
+    minimiza el costo total pagado sin sobrepasar el límite de cuota.<br><br>
+    En 20 años pagás aprox. el <strong>doble del capital</strong>, mientras que en 30 años
+    llegás a pagar casi el <strong>2.4x</strong>.
+    Si podés pagar una cuota más alta, <strong>15 años</strong> es la mejor relación
+    costo-tiempo para propiedades hasta ~$147k USD.
+  `;
+
+  document.getElementById('recBal').innerHTML = `
+    <strong>30 años</strong> es la opción más cómoda en cuota: permite acceder a propiedades
+    de hasta <strong>$206k USD</strong> con la cuota aprobada.<br><br>
+    Para tu rango de búsqueda ($100k–$180k), el plazo de <strong>25–30 años</strong> da
+    holgura y la cuota más baja inicial. Recordá que en UVA la cuota en pesos
+    sube con la inflación, así que tener margen inicial es prudente.
+  `;
+
+  document.getElementById('recRisk').innerHTML = `
+    Los créditos UVA tienen <strong>riesgo inflacionario</strong>: si la inflación supera
+    el aumento de tu salario, la cuota consume más porcentaje de tus ingresos.<br><br>
+    Argentina tiene historial de inflaciones altas. Asegurate de tener al menos
+    <strong>3 meses de cuota</strong> de ahorro como colchón.
+    El BCRA tiene mecanismos de protección (cuota no puede superar 25% del sueldo),
+    pero verificá las condiciones específicas del banco.
+  `;
+}
+
+// ─── Slider logic ─────────────────────────────────────────────────────────────
+function updateAll(propUSD) {
+  document.getElementById('sliderVal').textContent = fmtUSD(propUSD);
+  buildPropStats(propUSD);
+  buildDetailTable(propUSD);
+  buildChartCuota(propUSD);
+  buildChartTotal(propUSD);
+}
+
+document.getElementById('propSlider').addEventListener('input', e => {
+  updateAll(+e.target.value);
+});
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+updateAll(150000);
+buildFullTable();
+buildChartAll();
+buildUVASelectors();
+buildPreSelectors();
+buildRecommendations();
+</script>
+</body>
+</html>
