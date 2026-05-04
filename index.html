@@ -143,6 +143,14 @@
       padding: 7px 12px; font-size: 0.9rem; max-width: 100%;
     }
     .ctrl:focus { outline: none; border-color: var(--accent); }
+    /* Contexto sincronizado con el slider principal */
+    .prop-ctx {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: #122040; border: 1px solid var(--accent);
+      border-radius: 8px; padding: 8px 14px;
+      font-size: 0.85rem; color: var(--accent); font-weight: 600;
+    }
+    .prop-ctx span { color: var(--muted); font-weight: 400; font-size: 0.8rem; }
 
     /* ── Responsive ────────────────────────────────────── */
     @media (max-width: 768px) {
@@ -335,11 +343,8 @@
   El tooltip muestra también el equivalente en USD (asumiendo que el tipo de cambio sigue la inflación — PPP).
 </div>
 <div class="card" style="margin-bottom:28px;">
-  <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:20px;">
-    <div>
-      <label style="display:block;margin-bottom:6px;">Propiedad</label>
-      <select id="uvaPropSel" class="ctrl"></select>
-    </div>
+  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:20px;">
+    <div class="prop-ctx" id="uvaPropCtx"><span>cargando…</span></div>
     <div>
       <label style="display:block;margin-bottom:6px;">Plazo</label>
       <select id="uvaTermSel" class="ctrl"></select>
@@ -359,13 +364,10 @@
 </div>
 <div class="grid-2" style="margin-bottom:16px;">
   <div class="card">
+    <div class="prop-ctx" id="prePropCtx" style="margin-bottom:18px;"><span>cargando…</span></div>
     <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px;">
       <div>
-        <label style="display:block;margin-bottom:6px;">Propiedad</label>
-        <select id="prePropSel" class="ctrl"></select>
-      </div>
-      <div>
-        <label style="display:block;margin-bottom:6px;">Plazo</label>
+        <label style="display:block;margin-bottom:6px;">Plazo del crédito</label>
         <select id="preTermSel" class="ctrl"></select>
       </div>
       <div>
@@ -374,8 +376,11 @@
       </div>
     </div>
     <div style="margin-bottom:20px;">
-      <label style="display:block;margin-bottom:8px;">Mes de cancelación: <strong id="preMonthVal" style="color:var(--accent)">mes 60</strong></label>
-      <input type="range" id="preMonthSlider" min="1" max="360" step="1" value="60" />
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
+        <label>¿En qué mes cancelás anticipadamente?</label>
+        <strong id="preMonthVal" style="color:var(--accent);font-size:1rem;">mes 60 · año 5</strong>
+      </div>
+      <input type="range" id="preMonthSlider" min="1" max="240" step="1" value="60" />
     </div>
     <div class="grid-3" id="preStats" style="margin-bottom:0;"></div>
   </div>
@@ -390,11 +395,12 @@
   <div style="color:var(--muted);font-size:0.85rem;margin-bottom:16px;">
     Si pagás un monto extra todos los meses directo a capital, ¿cuánto antes terminás y cuánto ahorrás?
   </div>
-  <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:20px;">
+  <div style="display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap;margin-bottom:20px;">
     <div>
       <label style="display:block;margin-bottom:6px;">Pago extra mensual (ARS)</label>
       <input type="number" id="extraPayment" value="200000" step="50000" min="0" class="ctrl" style="width:180px;" />
     </div>
+    <div id="extraCtx" style="color:var(--muted);font-size:0.85rem;padding-bottom:9px;"></div>
   </div>
   <div class="grid-3" id="extraStats" style="margin-bottom:0;"></div>
 </div>
@@ -527,6 +533,7 @@ const BANK_MAX_LOANS = {
 
 // ─── Interactive property selector ───────────────────────────────────────────
 let chartCuota, chartTotal, chartAll;
+let selectedProp = 150000;
 
 function buildPropStats(propUSD) {
   const loan = loanAmount(propUSD);
@@ -780,28 +787,23 @@ const INF_SCENARIOS = [
 let chartUVA;
 
 function buildUVASelectors() {
-  const propSel = document.getElementById('uvaPropSel');
   const termSel = document.getElementById('uvaTermSel');
-  PROPS.forEach(p => {
-    const o = document.createElement('option');
-    o.value = p; o.textContent = fmtUSD(p);
-    if (p === 150000) o.selected = true;
-    propSel.appendChild(o);
-  });
   TERMS.forEach(t => {
     const o = document.createElement('option');
     o.value = t; o.textContent = t + ' años';
     if (t === 20) o.selected = true;
     termSel.appendChild(o);
   });
-  propSel.addEventListener('change', updateUVAChart);
   termSel.addEventListener('change', updateUVAChart);
   updateUVAChart();
 }
 
 function updateUVAChart() {
-  const propUSD = +document.getElementById('uvaPropSel').value;
+  const propUSD = selectedProp;
   const termYrs = +document.getElementById('uvaTermSel').value;
+  const loan0   = loanAmount(propUSD);
+  document.getElementById('uvaPropCtx').innerHTML =
+    fmtUSD(propUSD) + ' <span>· Préstamo ' + fmtARS(loan0) + ' · ' + termYrs + ' años</span>';
   const loan    = loanAmount(propUSD);
   const cuota0  = pmt(loan, termYrs * 12);
   const years   = Array.from({length: termYrs + 1}, (_, i) => i);
@@ -847,21 +849,16 @@ function updateUVAChart() {
 let chartBalance;
 
 function buildPreSelectors() {
-  ['prePropSel', 'preTermSel'].forEach((id, idx) => {
-    const sel = document.getElementById(id);
-    (idx === 0 ? PROPS : TERMS).forEach(v => {
-      const o = document.createElement('option');
-      o.value = v;
-      o.textContent = idx === 0 ? fmtUSD(v) : v + ' años';
-      if ((idx === 0 && v === 150000) || (idx === 1 && v === 20)) o.selected = true;
-      sel.appendChild(o);
-    });
-    sel.addEventListener('change', updatePreCalc);
+  const termSel = document.getElementById('preTermSel');
+  TERMS.forEach(t => {
+    const o = document.createElement('option');
+    o.value = t; o.textContent = t + ' años';
+    if (t === 20) o.selected = true;
+    termSel.appendChild(o);
   });
+  termSel.addEventListener('change', updatePreCalc);
   document.getElementById('prePenalty').addEventListener('input', updatePreCalc);
-  document.getElementById('preMonthSlider').addEventListener('input', e => {
-    updatePreCalc();
-  });
+  document.getElementById('preMonthSlider').addEventListener('input', updatePreCalc);
   document.getElementById('extraPayment').addEventListener('input', updateExtraCalc);
   updatePreCalc();
 }
@@ -873,17 +870,23 @@ function remainingBalance(principal, totalMonths, monthN) {
 }
 
 function updatePreCalc() {
-  const propUSD     = +document.getElementById('prePropSel').value;
+  const propUSD     = selectedProp;
   const termYrs     = +document.getElementById('preTermSel').value;
   const penaltyPct  = (+document.getElementById('prePenalty').value || 0) / 100;
   const totalMonths = termYrs * 12;
+
+  const loan0 = loanAmount(propUSD);
+  document.getElementById('prePropCtx').innerHTML =
+    fmtUSD(propUSD) + ' <span>· Préstamo ' + fmtARS(loan0) + ' · ' + termYrs + ' años</span>';
 
   const slider = document.getElementById('preMonthSlider');
   slider.max = totalMonths - 1;
   const monthN = Math.min(+slider.value, totalMonths - 1);
   slider.value = monthN;
+  const yearN  = Math.floor(monthN / 12);
+  const remMes = monthN % 12;
   document.getElementById('preMonthVal').textContent =
-    'mes ' + monthN + '  (año ' + (monthN / 12).toFixed(1) + ')';
+    'mes ' + monthN + ' · año ' + yearN + (remMes ? ' y ' + remMes + ' mes' + (remMes > 1 ? 'es' : '') : '');
 
   const loan          = loanAmount(propUSD);
   const cuota         = pmt(loan, totalMonths);
@@ -973,12 +976,17 @@ function updatePreCalc() {
 }
 
 function updateExtraCalc() {
-  const propUSD     = +document.getElementById('prePropSel').value;
+  const propUSD     = selectedProp;
   const termYrs     = +document.getElementById('preTermSel').value;
   const extra       = +document.getElementById('extraPayment').value || 0;
   const totalMonths = termYrs * 12;
   const loan        = loanAmount(propUSD);
   const cuota       = pmt(loan, totalMonths);
+
+  const ctxEl = document.getElementById('extraCtx');
+  if (ctxEl) ctxEl.innerHTML =
+    'Cuota base: <strong style="color:var(--text)">' + fmtARS(cuota) + '</strong>' +
+    ' · ' + termYrs + ' años · ' + fmtUSD(propUSD);
 
   if (extra <= 0) {
     document.getElementById('extraStats').innerHTML =
@@ -1004,14 +1012,14 @@ function updateExtraCalc() {
 
   document.getElementById('extraStats').innerHTML = `
     <div class="card" style="border:none;padding:10px 0;">
-      <div class="stat-label">Cuota total con extra</div>
+      <div class="stat-label">Nueva cuota mensual</div>
       <div class="stat-value" style="font-size:1.2rem;">${fmtARS(cuota + extra)}</div>
-      <div class="stat-sub">${fmtUSD((cuota + extra) / USD)} / mes</div>
+      <div class="stat-sub" style="color:var(--muted);">antes: ${fmtARS(cuota)}</div>
     </div>
     <div class="card" style="border:none;padding:10px 0;">
-      <div class="stat-label">Terminás en</div>
-      <div class="stat-value" style="font-size:1.2rem;color:var(--accent2);">${month} meses</div>
-      <div class="stat-sub">Te ahorrás <strong>${monthsSaved} meses</strong> (${(monthsSaved / 12).toFixed(1)} años)</div>
+      <div class="stat-label">Nuevo plazo</div>
+      <div class="stat-value" style="font-size:1.2rem;color:var(--accent2);">${(month/12).toFixed(1)} años</div>
+      <div class="stat-sub">antes: ${termYrs} años · <strong style="color:var(--accent2);">−${(monthsSaved/12).toFixed(1)} años</strong></div>
     </div>
     <div class="card" style="border:none;padding:10px 0;">
       <div class="stat-label">Intereses que te ahorrás</div>
@@ -1054,11 +1062,14 @@ function buildRecommendations() {
 
 // ─── Slider logic ─────────────────────────────────────────────────────────────
 function updateAll(propUSD) {
+  selectedProp = propUSD;
   document.getElementById('sliderVal').textContent = fmtUSD(propUSD);
   buildPropStats(propUSD);
   buildDetailTable(propUSD);
   buildChartCuota(propUSD);
   buildChartTotal(propUSD);
+  updateUVAChart();
+  updatePreCalc();
 }
 
 document.getElementById('propSlider').addEventListener('input', e => {
